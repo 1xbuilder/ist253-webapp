@@ -185,6 +185,17 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
         <div class="ps-title">Фон</div>
         <div class="ps-body"><div class="bg-grid" id="bgGrid"></div></div>
       </div>
+      <div class="profile-section">
+        <div class="ps-title">Аватар</div>
+        <div class="ps-body" style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <div id="avPreview" style="width:68px;height:68px;border-radius:50%;overflow:hidden;border:3px solid var(--accent);background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:28px"><span id="avPreviewContent">👤</span></div>
+          <label style="cursor:pointer;width:100%">
+            <input type="file" id="avFileInput" accept="image/*" style="display:none" onchange="handleAvatarUpload(event)">
+            <div class="btn-primary" style="text-align:center">📷 Загрузить фото</div>
+          </label>
+          <button onclick="resetAvatar()" style="background:none;color:var(--dim);font-size:12px;padding:4px">Сбросить к стандартному</button>
+        </div>
+      </div>
       <div style="height:8px"></div>
     </div>
   </div>
@@ -203,7 +214,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
   </div>
 </div>
 <script>
-const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y29oeWppZHRicHFqbWp5ZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDUwNzYsImV4cCI6MjA5MDMyMTA3Nn0.Ac5cLTZpeu-3HQAZGCLpid583c4MMXczxKYYcvycWHE',BOT_TOKEN:'6029878031:AAEzDzfx7dVmZmGcA-sy5B2c1SqYSR-bRks',GROUP_ID:427};
+const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:'',BOT_TOKEN:'',GROUP_ID:427};
 const S={date:new Date(),view:'schedule',prevView:'schedule',cache:{},hw:[],calDate:new Date(),subgroup:localStorage.getItem('subgroup')||null,theme:localStorage.getItem('theme')||'default',bg:localStorage.getItem('bg')||'none',tgUser:null};
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DNAMES=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -246,13 +257,13 @@ function bindNav(){document.querySelectorAll('.nav-tab').forEach(b=>b.addEventLi
 function goView(name){if(name==='detail')S.prevView=S.view;S.view=name;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${name}`).classList.add('active');document.querySelectorAll('.nav-tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));document.getElementById('profileBtn').classList.toggle('active-tab',name==='profile');document.querySelector('.bottom-nav').style.display=name==='detail'?'none':'';if(name==='subjects')renderSubjects()}
 async function fetchWeek(mon,sun){const url=`https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;for(const src of[PROXY+encodeURIComponent(url),url]){try{const r=await fetch(src,{headers:{'Accept':'application/json'}});if(r.ok)return await r.json()}catch{}}return[]}
 async function loadWeekAndRender(date){const k=key(date);if(!S.cache[k]){document.getElementById('lessonsList').innerHTML='<div class="loader"><div class="spinner"></div>Загрузка...</div>';const{mon,sun}=weekOf(date);const lessons=await fetchWeek(mon,sun);lessons.forEach(l=>{const dk=l.date?l.date.replace(/\./g,'-'):'';if(dk){if(!S.cache[dk])S.cache[dk]=[];S.cache[dk].push(l)}});for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);if(!S.cache[key(d)])S.cache[key(d)]=[]}}renderLessons(date);renderStrip()}
-function filterSG(lessons){if(!S.subgroup)return lessons;const o=S.subgroup==='1'?'/2':'/1';return lessons.filter(l=>!l.discipline||!l.discipline.includes(o))}
+function filterSG(lessons){if(!S.subgroup)return lessons;const otherSub=S.subgroup==='1'?'2':'1';return lessons.filter(l=>{const disc=(l.discipline||'').toLowerCase();const stream=(l.stream||l.subGroup||l.subgroup||l.group||'').toLowerCase();if((disc+' '+stream).includes('/'+otherSub))return false;return true;})}
 async function loadHW(){if(!CFG.SUPABASE_KEY)return;try{const r=await fetch(`${CFG.SUPABASE_URL}/rest/v1/homeworks?select=*&order=date_for.asc`,{headers:{'apikey':CFG.SUPABASE_KEY,'Authorization':`Bearer ${CFG.SUPABASE_KEY}`}});if(r.ok)S.hw=await r.json()}catch(e){console.warn(e)}}
 function hwFor(subj){return S.hw.filter(h=>fuzzy(h.subject,subj))}
 function fuzzy(a,b){if(!a||!b)return false;const n=s=>s.toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();const na=n(a),nb=n(b);if(na===nb||na.includes(nb)||nb.includes(na))return true;const wa=na.split(' '),wb=nb.split(' ');return wa[0]&&wb[0]&&wa[0]===wb[0]&&wa[0].length>4}
 function renderStrip(){const{mon}=weekOf(S.date);const strip=document.getElementById('daysStrip');strip.innerHTML='';for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const dk=key(d),isA=dk===key(S.date);const lessons=filterSG(S.cache[dk]||[]);const hasHW=lessons.some(l=>hwFor(l.discipline).length>0);const pill=document.createElement('div');pill.className='day-pill'+(isA?' active':'')+(hasHW?' has-hw':'');pill.innerHTML=`<span>${d.getDate()}</span><span class="dn">${DNAMES[i]}</span>`;pill.addEventListener('click',()=>pickDay(new Date(d)));strip.appendChild(pill);if(isA)setTimeout(()=>pill.scrollIntoView({inline:'center',behavior:'smooth'}),30)}document.getElementById('headerDate').textContent=fmtD(S.date)}
 async function pickDay(d){S.date=d;renderStrip();await loadWeekAndRender(d)}
-function renderLessons(date){const lessons=filterSG(S.cache[key(date)]||[]);const el=document.getElementById('lessonsList');if(!lessons.length){el.innerHTML=`<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Занятий нет —<br>можно отдохнуть!</div></div>`;return}el.innerHTML='';lessons.forEach(l=>{const hws=hwFor(l.discipline),hw0=hws[0];const card=document.createElement('div');card.className='lesson-card'+(hw0?' has-hw':'');card.innerHTML=`<div class="lc-top"><div class="lc-subject">${l.discipline||'—'}</div><div class="lc-right"><div class="lc-time">${l.beginLesson||''}–${l.endLesson||''}</div>${hw0?`<button class="hw-toggle">›</button>`:''}</div></div><div class="lc-kind">${l.kindOfWork||''}</div><div class="lc-meta">${l.lecturer?`<span>${l.lecturer}</span>`:''}${l.lecturer&&l.auditorium?`<span class="lc-dot"></span>`:''} ${l.auditorium?`<span>${l.auditorium}${l.building?' '+l.building:''}</span>`:''}</div>${hw0?`<div class="lc-hw"><div class="lc-hw-text">${esc(hw0.task||'')}</div><button class="btn-primary">Посмотреть полностью</button></div>`:''}`; if(hw0){const toggle=card.querySelector('.hw-toggle'),section=card.querySelector('.lc-hw');toggle.addEventListener('click',()=>{const open=section.classList.toggle('open');toggle.classList.toggle('open',open);toggle.textContent=open?'✓':'›'});card.querySelector('.btn-primary').addEventListener('click',()=>openDetail(hw0,l))}el.appendChild(card)})}
+function renderLessons(date){const lessons=filterSG(S.cache[key(date)]||[]);const el=document.getElementById('lessonsList');if(!lessons.length){el.innerHTML=`<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Занятий нет —<br>можно отдохнуть!</div></div>`;return}el.innerHTML='';lessons.forEach(l=>{const hws=hwFor(l.discipline),hw0=hws[0];const card=document.createElement('div');card.className='lesson-card'+(hw0?' has-hw':'');card.innerHTML=`<div class="lc-top"><div class="lc-subject">${l.discipline||'—'}</div><div class="lc-right"><div class="lc-time">${l.beginLesson||''}–${l.endLesson||''}</div>${hw0?`<button class="hw-toggle">›</button>`:''}</div></div><div class="lc-kind">${l.kindOfWork||''}</div><div class="lc-meta">${l.lecturer?`<span>${l.lecturer}</span>`:''}${l.lecturer&&l.auditorium?`<span class="lc-dot"></span>`:''} ${l.auditorium?`<span>${l.auditorium}${l.building?' '+l.building:''}</span>`:''}</div>${hw0?`<div class="lc-hw">${needsDetailPage(hw0)?`<div class="lc-hw-text">${esc(hw0.task||'')}</div><button class="btn-primary hw-detail-btn">Посмотреть полностью</button>`:`<div style="font-size:13px;color:var(--dim);line-height:1.6">${esc(hw0.task||'')}</div>`}</div>`:""}`; if(hw0){const toggle=card.querySelector('.hw-toggle'),section=card.querySelector('.lc-hw');toggle.addEventListener('click',()=>{const open=section.classList.toggle('open');toggle.classList.toggle('open',open);toggle.textContent=open?'✓':'›'});const fb=card.querySelector('.hw-detail-btn');if(fb)fb.addEventListener('click',()=>openDetail(hw0,l))}el.appendChild(card)})}
 function renderSubjects(){const el=document.getElementById('subjectsList');const allL=filterSG(Object.values(S.cache).flat());const seen=new Set(),subjects=[];allL.forEach(l=>{if(l.discipline&&!seen.has(l.discipline)){seen.add(l.discipline);subjects.push(l.discipline)}});if(!subjects.length){el.innerHTML=`<div class="empty"><div class="empty-ico">📚</div><div class="empty-txt">Открой расписание —<br>здесь появятся предметы</div></div>`;return}el.innerHTML='';subjects.forEach(subj=>{const hws=hwFor(subj);const group=document.createElement('div');group.className='subject-group';let rows='';if(!hws.length){rows=`<div class="hw-row"><div class="hw-empty">Домашних заданий нет</div></div>`}else{hws.forEach(hw=>{const d=new Date(hw.date_for);const ds=`${pad(d.getDate())}.${pad(d.getMonth()+1)}`;const dl=S.cache[hw.date_for]||[];const match=dl.find(l=>fuzzy(l.discipline,subj));const kind=match?.kindOfWork||'';rows+=`<div class="hw-row"><div class="hw-row-top"><span class="hw-row-date">${ds}</span><span class="hw-row-kind">${kind}</span><button class="hw-chevron">›</button></div><div class="hw-row-body"><div class="hw-row-task">${esc(hw.task||'')}</div><button class="btn-primary">Посмотреть полностью</button></div></div>`})}group.innerHTML=`<div class="subj-title">${subj}</div>${rows}`;group.querySelectorAll('.hw-chevron').forEach(btn=>{btn.addEventListener('click',()=>{const body=btn.closest('.hw-row').querySelector('.hw-row-body');const open=body.classList.toggle('open');btn.classList.toggle('open',open);btn.textContent=open?'✓':'›'})});group.querySelectorAll('.btn-primary').forEach((btn,i)=>{btn.addEventListener('click',()=>{const hw=hws[i];if(!hw)return;const dl=S.cache[hw.date_for]||[];const lesson=dl.find(l=>fuzzy(l.discipline,subj))||null;openDetail(hw,lesson)})});el.appendChild(group)})}
 function openDetail(hw,lesson){document.getElementById('detailSubject').textContent=hw.subject||lesson?.discipline||'';document.getElementById('detailKind').textContent=lesson?.kindOfWork||'';const d=new Date(hw.date_for);document.getElementById('detailDate').textContent=`${pad(d.getDate())}.${pad(d.getMonth()+1)}`;document.getElementById('detailBody').textContent=hw.task||'';renderAttachments(hw);goView('detail')}
 async function renderAttachments(hw){const el=document.getElementById('attachments');el.innerHTML='';let files=[];try{if(hw.attachment_file_id)files=JSON.parse(hw.attachment_file_id)}catch{}if(!files.length)return;for(const f of files){if(f.type==='photo'&&CFG.BOT_TOKEN){try{const r=await fetch(`https://api.telegram.org/bot${CFG.BOT_TOKEN}/getFile?file_id=${f.file_id}`);const j=await r.json();if(j.ok){const div=document.createElement('div');div.className='attach-photo';div.innerHTML=`<img src="https://api.telegram.org/file/bot${CFG.BOT_TOKEN}/${j.result.file_path}" alt="">`;el.appendChild(div)}}catch{}}else if(f.type==='document'){const div=document.createElement('div');div.className='attach-doc';div.innerHTML=`<span style="font-size:22px">📄</span><span>${f.file_name||'Документ'}</span>`;el.appendChild(div)}}}
@@ -269,10 +280,38 @@ function needsDetailPage(hw){
 }
 
 function esc(s){return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>')}
+
+function handleAvatarUpload(e){
+  const file=e.target.files[0];if(!file)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const b64=ev.target.result;
+    localStorage.setItem('customAvatar',b64);
+    applyCustomAvatar(b64);
+  };
+  reader.readAsDataURL(file);
+}
+function applyCustomAvatar(src){
+  const img=`<img src="${src}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover">`;
+  const av=document.getElementById('profileAvatar');if(av)av.innerHTML=img;
+  const nb=document.getElementById('profileBtn');if(nb){nb.innerHTML='';const i=document.createElement('img');i.src=src;i.style.cssText='width:100%;height:100%;object-fit:cover';nb.appendChild(i);}
+  const prev=document.getElementById('avPreviewContent');if(prev)prev.innerHTML=`<img src="${src}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+}
+function resetAvatar(){
+  localStorage.removeItem('customAvatar');
+  const av=document.getElementById('profileAvatar');
+  const initials=document.getElementById('profileInitials');
+  if(av&&initials){av.innerHTML='';av.appendChild(initials);}
+  const nb=document.getElementById('profileBtn');
+  const navInit=document.getElementById('navInitials');
+  if(nb&&navInit){nb.innerHTML='';nb.appendChild(navInit);}
+  const prev=document.getElementById('avPreviewContent');if(prev)prev.textContent='👤';
+}
+
 document.addEventListener('DOMContentLoaded',async()=>{
   if(window.Telegram?.WebApp){Telegram.WebApp.ready();Telegram.WebApp.expand();S.tgUser=Telegram.WebApp.initDataUnsafe?.user||null}
   applyTheme(S.theme);applyBg(S.bg);buildThemeGrid();buildBgGrid();bindNav();bindCalendar();
-  await loadProfileUI();await loadHW();renderStrip();await loadWeekAndRender(S.date);
+  await loadProfileUI();const savedAv=localStorage.getItem('customAvatar');if(savedAv)applyCustomAvatar(savedAv);await loadHW();renderStrip();await loadWeekAndRender(S.date);
   if(!S.subgroup)goView('profile');
 });
 </script>
