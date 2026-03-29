@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ИСТ-253</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:       #091828;
+  --surface:  #0d2242;
+  --surface2: #112a50;
+  --surface3: #16325e;
+  --accent:   #2563eb;
+  --accent2:  #3b82f6;
+  --green:    #22c55e;
+  --text:     #ffffff;
+  --dim:      #6b8fb0;
+  --muted:    #3a5570;
+  --border:   rgba(59,130,246,.18);
+  --r:        16px;
+  --r-sm:     10px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
+body{
+  font-family:'Golos Text',system-ui,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  max-width:430px;
+  margin:0 auto;
+}
+button{font-family:inherit;cursor:pointer}
+
+/* ── APP SHELL ─────────────────────────────── */
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+.views{flex:1;overflow:hidden;position:relative}
+.view{
+  position:absolute;inset:0;
+  overflow-y:auto;
+  padding-bottom:88px;
+  opacity:0;pointer-events:none;
+  transition:opacity .18s ease;
+  -ms-overflow-style:none;scrollbar-width:none;
+}
+.view::-webkit-scrollbar{display:none}
+.view.active{opacity:1;pointer-events:all}
+
+/* ── HEADER ────────────────────────────────── */
+.header{
+  padding:14px 20px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.header-date{font-size:18px;font-weight:700;letter-spacing:.3px}
+.icon-btn{
+  width:38px;height:38px;border-radius:11px;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent2);font-size:17px;border:none;
+  outline:none;transition:background .15s;
+}
+.icon-btn:active{background:var(--surface2)}
+
+/* ── DAY STRIP ─────────────────────────────── */
+.days-strip{
+  padding:0 16px 10px;
+  display:flex;gap:8px;
+  overflow-x:auto;scrollbar-width:none;
+}
+.days-strip::-webkit-scrollbar{display:none}
+.day-pill{
+  flex-shrink:0;
+  width:46px;height:46px;border-radius:13px;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:16px;font-weight:600;cursor:pointer;
+  transition:all .15s;
+  position:relative;
+  line-height:1;
+}
+.day-pill .day-name{font-size:9px;font-weight:500;color:var(--dim);margin-top:3px;letter-spacing:.5px;text-transform:uppercase}
+.day-pill.active{background:var(--accent);border-color:transparent;color:#fff}
+.day-pill.active .day-name{color:rgba(255,255,255,.7)}
+.day-pill.has-hw::after{
+  content:'';position:absolute;bottom:4px;
+  width:5px;height:5px;border-radius:50%;
+  background:var(--green);
+}
+.day-pill.active.has-hw::after{background:#fff}
+
+/* ── LESSON CARDS ──────────────────────────── */
+.lessons-list{padding:4px 14px 8px;display:flex;flex-direction:column;gap:8px}
+
+.lesson-card{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  padding:14px 14px 12px;
+  transition:border-color .2s;
+}
+.lesson-card.has-hw{border-color:rgba(59,130,246,.35)}
+
+.lc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:5px}
+.lc-subject{font-size:15px;font-weight:700;flex:1;line-height:1.3}
+.lc-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.lc-time{font-size:12px;font-weight:600;color:var(--dim);white-space:nowrap}
+
+.lc-kind{font-size:12px;color:var(--dim);margin-bottom:6px}
+.lc-meta{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted)}
+.lc-dot{width:3px;height:3px;border-radius:50%;background:var(--muted);flex-shrink:0}
+
+/* HW toggle button */
+.hw-toggle{
+  width:30px;height:30px;border-radius:9px;
+  background:var(--surface2);border:none;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent2);font-size:15px;font-weight:600;
+  transition:all .2s;flex-shrink:0;
+}
+.hw-toggle.open{background:rgba(34,197,94,.15);color:var(--green)}
+
+/* HW section */
+.lc-hw{
+  margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--border);
+  display:none;
+}
+.lc-hw.open{display:block}
+.lc-hw-text{
+  font-size:13px;color:var(--dim);line-height:1.6;
+  margin-bottom:10px;
+  display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;
+}
+.btn-primary{
+  width:100%;padding:11px;
+  background:var(--accent);border:none;border-radius:10px;
+  color:#fff;font-size:13px;font-weight:600;
+  transition:opacity .15s;
+}
+.btn-primary:active{opacity:.85}
+
+/* ── SUBJECTS VIEW ─────────────────────────── */
+.page-header{
+  padding:14px 20px 10px;
+  font-size:18px;font-weight:700;
+}
+.subject-group{
+  margin:0 14px 8px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:var(--r);
+  overflow:hidden;
+}
+.subj-title{
+  padding:13px 14px;
+  font-size:14px;font-weight:700;
+}
+.hw-row{
+  border-top:1px solid var(--border);
+  padding:11px 14px;
+}
+.hw-row-top{display:flex;align-items:center;gap:10px}
+.hw-row-date{font-size:14px;font-weight:700;color:var(--accent2);flex-shrink:0;min-width:38px}
+.hw-row-kind{font-size:13px;color:var(--dim);flex:1}
+.hw-chevron{
+  width:30px;height:30px;border-radius:9px;flex-shrink:0;
+  background:var(--surface2);border:none;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--accent2);font-size:15px;font-weight:600;
+  transition:all .2s;
+}
+.hw-chevron.open{background:rgba(34,197,94,.15);color:var(--green)}
+.hw-row-body{display:none;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.hw-row-body.open{display:block}
+.hw-row-task{font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:10px}
+.hw-empty{font-size:12px;color:var(--muted);padding:10px 0}
+
+/* ── HW DETAIL VIEW ───────────────────────── */
+.detail-header{
+  padding:12px 14px 8px;
+  display:flex;align-items:center;gap:12px;
+}
+.detail-meta{flex:1;min-width:0}
+.detail-subject{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.detail-kind{font-size:12px;color:var(--dim);margin-top:2px}
+.detail-date-badge{
+  flex-shrink:0;
+  background:var(--surface2);
+  border-radius:8px;padding:5px 10px;
+  font-size:14px;font-weight:700;color:var(--accent2);
+}
+.detail-card{
+  margin:4px 14px 10px;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);padding:16px;
+  font-size:14px;line-height:1.75;color:var(--text);
+}
+.attachments{margin:0 14px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.attach-photo{
+  border-radius:13px;overflow:hidden;
+  aspect-ratio:1;background:var(--surface);
+  border:1px solid var(--border);
+}
+.attach-photo img{width:100%;height:100%;object-fit:cover;display:block}
+.attach-doc{
+  border-radius:11px;overflow:hidden;
+  background:var(--surface);border:1px solid var(--border);
+  padding:12px;display:flex;align-items:center;gap:10px;
+  font-size:13px;grid-column:1/-1;
+}
+.attach-doc-icon{font-size:22px;flex-shrink:0}
+
+/* ── CALENDAR OVERLAY ─────────────────────── */
+.cal-overlay{
+  position:fixed;inset:0;z-index:200;
+  background:rgba(5,15,30,.72);
+  backdrop-filter:blur(6px);
+  display:none;
+  flex-direction:column;align-items:center;
+  padding-top:90px;
+}
+.cal-overlay.open{display:flex;animation:fadeIn .18s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+.cal-modal{
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;padding:16px;
+  width:calc(100% - 28px);max-width:370px;
+  animation:slideDown .2s ease;
+}
+@keyframes slideDown{from{transform:translateY(-12px);opacity:0}to{transform:translateY(0);opacity:1}}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.cal-month-label{font-size:15px;font-weight:700}
+.cal-nav-btn{
+  width:32px;height:32px;border-radius:9px;
+  background:var(--surface2);border:none;
+  color:var(--accent2);font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-dname{text-align:center;font-size:10px;font-weight:600;color:var(--dim);padding:4px 0 6px;letter-spacing:.4px}
+.cal-day{
+  aspect-ratio:1;border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;cursor:pointer;transition:background .12s;
+}
+.cal-day:active{background:var(--surface3)}
+.cal-day.other{color:var(--muted)}
+.cal-day.today{border:1px solid var(--accent2)}
+.cal-day.selected{background:var(--accent);color:#fff}
+.cal-day.has-lessons{position:relative}
+.cal-day.has-lessons::after{
+  content:'';position:absolute;bottom:3px;
+  width:4px;height:4px;border-radius:50%;background:var(--green);
+}
+
+/* ── BOTTOM NAV ─────────────────────────────── */
+.bottom-nav{
+  position:fixed;bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:430px;
+  padding:8px 14px max(20px, env(safe-area-inset-bottom));
+  background:linear-gradient(to top,var(--bg) 60%,transparent);
+  display:flex;align-items:center;gap:8px;
+  z-index:100;
+}
+.nav-tabs{
+  flex:1;background:var(--surface);
+  border:1px solid var(--border);border-radius:15px;
+  padding:4px;display:flex;gap:4px;
+}
+.nav-tab{
+  flex:1;padding:10px 8px;border-radius:11px;border:none;
+  background:none;color:var(--dim);
+  font-size:13px;font-weight:600;transition:all .18s;
+}
+.nav-tab.active{background:var(--accent);color:#fff}
+.nav-avatar{
+  width:50px;height:50px;border-radius:14px;
+  background:var(--surface);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;color:var(--dim);flex-shrink:0;
+}
+
+/* ── STATES ─────────────────────────────────── */
+.empty{text-align:center;padding:52px 24px;color:var(--dim)}
+.empty-ico{font-size:44px;margin-bottom:12px}
+.empty-txt{font-size:14px;line-height:1.6}
+.loader{display:flex;align-items:center;justify-content:center;padding:52px 24px;gap:12px;color:var(--dim);font-size:14px}
+.spinner{width:20px;height:20px;border-radius:50%;border:2.5px solid var(--muted);border-top-color:var(--accent);animation:spin .65s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="views">
+
+    <!-- ═══ SCHEDULE VIEW ═══ -->
+    <div class="view active" id="view-schedule">
+      <div class="header">
+        <div class="header-date" id="headerDate">–</div>
+        <button class="icon-btn" id="calBtn" aria-label="Открыть календарь">📅</button>
+      </div>
+      <div class="days-strip" id="daysStrip"></div>
+      <div class="lessons-list" id="lessonsList">
+        <div class="loader"><div class="spinner"></div>Загрузка...</div>
+      </div>
+    </div>
+
+    <!-- ═══ SUBJECTS VIEW ═══ -->
+    <div class="view" id="view-subjects">
+      <div class="page-header">Предметы</div>
+      <div id="subjectsList">
+        <div class="loader"><div class="spinner"></div>Загрузка...</div>
+      </div>
+    </div>
+
+    <!-- ═══ DETAIL VIEW ═══ -->
+    <div class="view" id="view-detail">
+      <div class="detail-header">
+        <button class="icon-btn" id="backBtn" aria-label="Назад">←</button>
+        <div class="detail-meta">
+          <div class="detail-subject" id="detailSubject"></div>
+          <div class="detail-kind" id="detailKind"></div>
+        </div>
+        <div class="detail-date-badge" id="detailDate"></div>
+      </div>
+      <div class="detail-card" id="detailBody"></div>
+      <div class="attachments" id="attachments" style="margin-top:10px"></div>
+    </div>
+
+  </div>
+
+  <!-- ═══ BOTTOM NAV ═══ -->
+  <div class="bottom-nav" id="bottomNav">
+    <div class="nav-tabs">
+      <button class="nav-tab active" data-view="schedule">Расписание</button>
+      <button class="nav-tab"        data-view="subjects">Предметы</button>
+    </div>
+    <div class="nav-avatar">👤</div>
+  </div>
+</div>
+
+<!-- ═══ CALENDAR OVERLAY ═══ -->
+<div class="cal-overlay" id="calOverlay">
+  <div class="cal-modal">
+    <div class="cal-head">
+      <button class="cal-nav-btn" id="calPrev">‹</button>
+      <div class="cal-month-label" id="calMonthLabel"></div>
+      <button class="cal-nav-btn" id="calNext">›</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+</div>
+
+<script>
+// ╔══════════════════════════════════════════════════════════╗
+//  ⚙️  CONFIG — вставь свои ключи
+// ╚══════════════════════════════════════════════════════════╝
+const CFG = {
+  SUPABASE_URL: 'https://szcohyjidtbpqjmjyesc.supabase.co',
+  SUPABASE_KEY: '',   // anon key: Supabase → Settings → API → anon public
+  BOT_TOKEN:    '',   // токен бота (для показа фото, необязательно)
+  GROUP_ID:      427,
+};
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📦  STATE
+// ╚══════════════════════════════════════════════════════════╝
+const S = {
+  date:      new Date(),
+  view:      'schedule',
+  prevView:  'schedule',
+  cache:     {},      // 'YYYY-MM-DD' → lessons[]
+  hw:        [],
+  calDate:   new Date(),
+};
+
+const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
+                'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const DNAMES = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+const PROXY  = 'https://corsproxy.io/?';
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🚀  INIT
+// ╚══════════════════════════════════════════════════════════╝
+document.addEventListener('DOMContentLoaded', async () => {
+  if (window.Telegram?.WebApp) {
+    Telegram.WebApp.ready();
+    Telegram.WebApp.expand();
+  }
+  bindNav();
+  bindCalendar();
+  await loadHW();
+  renderStrip();
+  await loadWeekAndRender(S.date);
+});
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🔗  NAVIGATION
+// ╚══════════════════════════════════════════════════════════╝
+function bindNav() {
+  document.querySelectorAll('.nav-tab').forEach(b =>
+    b.addEventListener('click', () => goView(b.dataset.view)));
+  document.getElementById('backBtn').addEventListener('click', () => goView(S.prevView));
+}
+
+function goView(name) {
+  if (name === 'detail') S.prevView = S.view;
+  S.view = name;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById(`view-${name}`).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.view === name));
+  document.getElementById('bottomNav').style.display = name === 'detail' ? 'none' : '';
+  if (name === 'subjects') renderSubjects();
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📅  DATE HELPERS
+// ╚══════════════════════════════════════════════════════════╝
+const key  = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const pad  = n => String(n).padStart(2,'0');
+const fmtD = d => `${pad(d.getDate())}.${pad(d.getMonth()+1)}.${d.getFullYear()}`;
+const fmtA = d => `${d.getFullYear()}.${pad(d.getMonth()+1)}.${pad(d.getDate())}`;
+
+function weekOf(d) {
+  const c = new Date(d);
+  const dow = c.getDay() || 7;
+  c.setDate(c.getDate() - dow + 1);
+  const mon = new Date(c);
+  const sun = new Date(c); sun.setDate(c.getDate() + 6);
+  return { mon, sun };
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🌐  SCHEDULE API
+// ╚══════════════════════════════════════════════════════════╝
+async function fetchWeek(mon, sun) {
+  const url = `https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;
+  for (const src of [PROXY + encodeURIComponent(url), url]) {
+    try {
+      const r = await fetch(src, { headers: { 'Accept': 'application/json' } });
+      if (r.ok) return await r.json();
+    } catch {}
+  }
+  return [];
+}
+
+async function loadWeekAndRender(date) {
+  const k = key(date);
+  if (!S.cache[k]) {
+    document.getElementById('lessonsList').innerHTML = '<div class="loader"><div class="spinner"></div>Загрузка расписания...</div>';
+    const { mon, sun } = weekOf(date);
+    const lessons = await fetchWeek(mon, sun);
+    lessons.forEach(l => {
+      const dk = l.date ? l.date.replace(/\./g, '-') : '';
+      if (dk) {
+        if (!S.cache[dk]) S.cache[dk] = [];
+        S.cache[dk].push(l);
+      }
+    });
+    // Mark days that have no lessons too (so we know we fetched)
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(mon); d.setDate(mon.getDate() + i);
+      if (!S.cache[key(d)]) S.cache[key(d)] = [];
+    }
+  }
+  renderLessons(date);
+  renderStrip(); // refresh dots
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📚  HOMEWORK (Supabase)
+// ╚══════════════════════════════════════════════════════════╝
+async function loadHW() {
+  if (!CFG.SUPABASE_KEY) return;
+  try {
+    const r = await fetch(`${CFG.SUPABASE_URL}/rest/v1/homeworks?select=*&order=date_for.asc`, {
+      headers: { 'apikey': CFG.SUPABASE_KEY, 'Authorization': `Bearer ${CFG.SUPABASE_KEY}` }
+    });
+    if (r.ok) S.hw = await r.json();
+  } catch(e) { console.warn('HW load error', e); }
+}
+
+function hwForSubject(subj) {
+  return S.hw.filter(h => fuzzy(h.subject, subj));
+}
+
+function hwById(id) { return S.hw.find(h => h.id === id); }
+
+function fuzzy(a, b) {
+  if (!a || !b) return false;
+  const n = s => s.toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();
+  const na = n(a), nb = n(b);
+  if (na === nb) return true;
+  if (na.includes(nb) || nb.includes(na)) return true;
+  const wa = na.split(' '), wb = nb.split(' ');
+  return wa[0] && wb[0] && wa[0] === wb[0] && wa[0].length > 4;
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📆  DAY STRIP
+// ╚══════════════════════════════════════════════════════════╝
+function renderStrip() {
+  const { mon } = weekOf(S.date);
+  const strip = document.getElementById('daysStrip');
+  strip.innerHTML = '';
+  const today = key(new Date());
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    const dk = key(d);
+    const isActive = dk === key(S.date);
+    const lessons  = S.cache[dk] || [];
+    const hasHW    = lessons.some(l => hwForSubject(l.discipline).length > 0);
+
+    const pill = document.createElement('div');
+    pill.className = 'day-pill' + (isActive ? ' active' : '') + (hasHW ? ' has-hw' : '');
+    pill.innerHTML = `<span>${d.getDate()}</span><span class="day-name">${DNAMES[i]}</span>`;
+    pill.addEventListener('click', () => pickDay(new Date(d)));
+    strip.appendChild(pill);
+
+    if (isActive) setTimeout(() => pill.scrollIntoView({ inline:'center', behavior:'smooth' }), 30);
+  }
+
+  document.getElementById('headerDate').textContent = fmtD(S.date);
+}
+
+async function pickDay(d) {
+  S.date = d;
+  renderStrip();
+  await loadWeekAndRender(d);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🗓  SCHEDULE RENDER
+// ╚══════════════════════════════════════════════════════════╝
+function renderLessons(date) {
+  const lessons = S.cache[key(date)] || [];
+  const el = document.getElementById('lessonsList');
+
+  if (!lessons.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Занятий нет —<br>можно отдохнуть!</div></div>`;
+    return;
+  }
+
+  el.innerHTML = '';
+  lessons.forEach(l => {
+    const hws = hwForSubject(l.discipline);
+    const hw0 = hws[0];
+    const card = document.createElement('div');
+    card.className = 'lesson-card' + (hw0 ? ' has-hw' : '');
+
+    card.innerHTML = `
+      <div class="lc-top">
+        <div class="lc-subject">${l.discipline || '—'}</div>
+        <div class="lc-right">
+          <div class="lc-time">${l.beginLesson || ''}–${l.endLesson || ''}</div>
+          ${hw0 ? `<button class="hw-toggle" aria-label="ДЗ">›</button>` : ''}
+        </div>
+      </div>
+      <div class="lc-kind">${l.kindOfWork || ''}</div>
+      <div class="lc-meta">
+        ${l.lecturer ? `<span>${l.lecturer}</span>` : ''}
+        ${l.lecturer && l.auditorium ? `<span class="lc-dot"></span>` : ''}
+        ${l.auditorium ? `<span>${l.auditorium}${l.building ? ' '+l.building : ''}</span>` : ''}
+      </div>
+      ${hw0 ? `
+        <div class="lc-hw">
+          <div class="lc-hw-text">${esc(hw0.task || '')}</div>
+          <button class="btn-primary hw-detail-btn">Посмотреть полностью</button>
+        </div>` : ''}`;
+
+    if (hw0) {
+      const toggle  = card.querySelector('.hw-toggle');
+      const section = card.querySelector('.lc-hw');
+      toggle.addEventListener('click', () => {
+        const open = section.classList.toggle('open');
+        toggle.classList.toggle('open', open);
+        toggle.textContent = open ? '✓' : '›';
+      });
+      card.querySelector('.hw-detail-btn').addEventListener('click', () => openDetail(hw0, l));
+    }
+    el.appendChild(card);
+  });
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📋  SUBJECTS RENDER
+// ╚══════════════════════════════════════════════════════════╝
+function renderSubjects() {
+  const el = document.getElementById('subjectsList');
+  const allLessons = Object.values(S.cache).flat();
+  const seen = new Set();
+  const subjects = [];
+  allLessons.forEach(l => {
+    if (l.discipline && !seen.has(l.discipline)) {
+      seen.add(l.discipline);
+      subjects.push(l.discipline);
+    }
+  });
+
+  if (!subjects.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ico">📚</div><div class="empty-txt">Открой расписание —<br>здесь появятся предметы</div></div>`;
+    return;
+  }
+
+  el.innerHTML = '';
+  subjects.forEach(subj => {
+    const hws = hwForSubject(subj);
+    const group = document.createElement('div');
+    group.className = 'subject-group';
+
+    let rows = '';
+    if (hws.length === 0) {
+      rows = `<div class="hw-row"><div class="hw-empty">Домашних заданий нет</div></div>`;
+    } else {
+      hws.forEach(hw => {
+        const d  = new Date(hw.date_for);
+        const ds = `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;
+        // Try to find kindOfWork from schedule on that date
+        const dayLessons = S.cache[hw.date_for] || [];
+        const match = dayLessons.find(l => fuzzy(l.discipline, subj));
+        const kind  = match?.kindOfWork || '';
+
+        rows += `
+          <div class="hw-row" data-hwid="${hw.id}">
+            <div class="hw-row-top">
+              <span class="hw-row-date">${ds}</span>
+              <span class="hw-row-kind">${kind}</span>
+              <button class="hw-chevron" aria-label="Развернуть">›</button>
+            </div>
+            <div class="hw-row-body">
+              <div class="hw-row-task">${esc(hw.task || '')}</div>
+              <button class="btn-primary">Посмотреть полностью</button>
+            </div>
+          </div>`;
+      });
+    }
+
+    group.innerHTML = `<div class="subj-title">${subj}</div>${rows}`;
+
+    group.querySelectorAll('.hw-chevron').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const body = btn.closest('.hw-row').querySelector('.hw-row-body');
+        const open = body.classList.toggle('open');
+        btn.classList.toggle('open', open);
+        btn.textContent = open ? '✓' : '›';
+      });
+    });
+
+    group.querySelectorAll('.btn-primary').forEach((btn, i) => {
+      btn.addEventListener('click', () => {
+        const hw = hws[i];
+        if (!hw) return;
+        const dayLessons = S.cache[hw.date_for] || [];
+        const lesson = dayLessons.find(l => fuzzy(l.discipline, subj)) || null;
+        openDetail(hw, lesson);
+      });
+    });
+
+    el.appendChild(group);
+  });
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  📄  HW DETAIL
+// ╚══════════════════════════════════════════════════════════╝
+function openDetail(hw, lesson) {
+  document.getElementById('detailSubject').textContent = hw.subject || lesson?.discipline || '';
+  document.getElementById('detailKind').textContent    = lesson?.kindOfWork || '';
+  const d = new Date(hw.date_for);
+  document.getElementById('detailDate').textContent    = `${pad(d.getDate())}.${pad(d.getMonth()+1)}`;
+  document.getElementById('detailBody').textContent    = hw.task || '';
+  renderAttachments(hw);
+  goView('detail');
+}
+
+async function renderAttachments(hw) {
+  const el = document.getElementById('attachments');
+  el.innerHTML = '';
+  let files = [];
+  try { if (hw.attachment_file_id) files = JSON.parse(hw.attachment_file_id); } catch {}
+  if (!files.length) return;
+
+  for (const f of files) {
+    if (f.type === 'photo' && CFG.BOT_TOKEN) {
+      try {
+        const r = await fetch(`https://api.telegram.org/bot${CFG.BOT_TOKEN}/getFile?file_id=${f.file_id}`);
+        const j = await r.json();
+        if (j.ok) {
+          const div = document.createElement('div');
+          div.className = 'attach-photo';
+          div.innerHTML = `<img src="https://api.telegram.org/file/bot${CFG.BOT_TOKEN}/${j.result.file_path}" alt="фото">`;
+          el.appendChild(div);
+        }
+      } catch {}
+    } else if (f.type === 'document') {
+      const div = document.createElement('div');
+      div.className = 'attach-doc';
+      div.innerHTML = `<span class="attach-doc-icon">📄</span><span>${f.file_name || 'Документ'}</span>`;
+      el.appendChild(div);
+    }
+  }
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🗓  CALENDAR
+// ╚══════════════════════════════════════════════════════════╝
+function bindCalendar() {
+  document.getElementById('calBtn').addEventListener('click', openCal);
+  document.getElementById('calOverlay').addEventListener('click', e => {
+    if (e.target === e.currentTarget) closeCal();
+  });
+  document.getElementById('calPrev').addEventListener('click', () => {
+    S.calDate.setMonth(S.calDate.getMonth() - 1); drawCal();
+  });
+  document.getElementById('calNext').addEventListener('click', () => {
+    S.calDate.setMonth(S.calDate.getMonth() + 1); drawCal();
+  });
+}
+
+function openCal()  { S.calDate = new Date(S.date); drawCal(); document.getElementById('calOverlay').classList.add('open'); }
+function closeCal() { document.getElementById('calOverlay').classList.remove('open'); }
+
+function drawCal() {
+  const d  = S.calDate;
+  const g  = document.getElementById('calGrid');
+  const today = key(new Date());
+  document.getElementById('calMonthLabel').textContent = `${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+  g.innerHTML = '';
+
+  DNAMES.forEach(n => {
+    const c = document.createElement('div');
+    c.className = 'cal-dname'; c.textContent = n; g.appendChild(c);
+  });
+
+  const first = new Date(d.getFullYear(), d.getMonth(), 1);
+  const last  = new Date(d.getFullYear(), d.getMonth()+1, 0);
+  let startDow = first.getDay() || 7;
+
+  for (let i = startDow - 1; i > 0; i--) {
+    const pd = new Date(first); pd.setDate(first.getDate() - i);
+    addCalCell(g, pd, true, today);
+  }
+  for (let i = 1; i <= last.getDate(); i++) addCalCell(g, new Date(d.getFullYear(), d.getMonth(), i), false, today);
+
+  const total = g.querySelectorAll('.cal-day').length;
+  for (let i = 1; i <= 42 - total; i++) {
+    const pd = new Date(last); pd.setDate(last.getDate() + i);
+    addCalCell(g, pd, true, today);
+  }
+}
+
+function addCalCell(g, date, other, today) {
+  const dk   = key(date);
+  const sel  = dk === key(S.date);
+  const tod  = dk === today;
+  const less = (S.cache[dk] || []).length > 0;
+  const c = document.createElement('div');
+  c.className = 'cal-day' + (other ? ' other' : '') + (tod ? ' today' : '') + (sel ? ' selected' : '') + (less ? ' has-lessons' : '');
+  c.textContent = date.getDate();
+  c.addEventListener('click', async () => { closeCal(); await pickDay(new Date(date)); });
+  g.appendChild(c);
+}
+
+// ╔══════════════════════════════════════════════════════════╗
+//  🛡  UTILS
+// ╚══════════════════════════════════════════════════════════╝
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
+}
+</script>
+</body>
+</html>
