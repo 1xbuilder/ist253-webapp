@@ -243,7 +243,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
   </div>
 </div>
 <script>
-const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y29oeWppZHRicHFqbWp5ZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDUwNzYsImV4cCI6MjA5MDMyMTA3Nn0.Ac5cLTZpeu-3HQAZGCLpid583c4MMXczxKYYcvycWHE',BOT_TOKEN:'6029878031:AAEzDzfx7dVmZmGcA-sy5B2c1SqYSR-bRks',GROUP_ID:427};
+const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y29oeWppZHRicHFqbWp5ZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDUwNzYsImV4cCI6MjA5MDMyMTA3Nn0.Ac5cLTZpeu-3HQAZGCLpid583c4MMXczxKYYcvycWHE',BOT_TOKEN:'6029878031:AAEUZ9VMhOzYsLQR5Lu3HMlU7XX5TCjUZbk',PHOTO_PROXY:'',GROUP_ID:427};
 const S={date:new Date(),view:'schedule',prevView:'schedule',cache:{},hw:[],calDate:new Date(),subgroup:localStorage.getItem('subgroup')||null,theme:localStorage.getItem('theme')||'default',bg:localStorage.getItem('bg')||'none',tgUser:null};
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DNAMES=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -287,15 +287,64 @@ function goView(name){if(name==='detail')S.prevView=S.view;S.view=name;document.
 async function fetchWeek(mon,sun){const url=`https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;for(const src of[PROXY+encodeURIComponent(url),url]){try{const r=await fetch(src,{headers:{'Accept':'application/json'}});if(r.ok)return await r.json()}catch{}}return[]}
 async function loadWeekAndRender(date){const k=key(date);if(!S.cache[k]){document.getElementById('lessonsList').innerHTML='<div class="loader"><div class="spinner"></div>Загрузка...</div>';const{mon,sun}=weekOf(date);const lessons=await fetchWeek(mon,sun);lessons.forEach(l=>{const dk=l.date?l.date.replace(/\./g,'-'):'';if(dk){if(!S.cache[dk])S.cache[dk]=[];S.cache[dk].push(l)}});for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);if(!S.cache[key(d)])S.cache[key(d)]=[]}}renderLessons(date);renderStrip()}
 function filterSG(lessons){if(!S.subgroup)return lessons;const otherSub=S.subgroup==='1'?'2':'1';return lessons.filter(l=>{const disc=(l.discipline||'').toLowerCase();const stream=(l.stream||l.subGroup||l.subgroup||l.group||'').toLowerCase();if((disc+' '+stream).includes('/'+otherSub))return false;return true;})}
-async function loadHW(){if(!CFG.SUPABASE_KEY)return;try{const r=await fetch(`${CFG.SUPABASE_URL}/rest/v1/homeworks?select=*&order=date_for.asc`,{headers:{'apikey':CFG.SUPABASE_KEY,'Authorization':`Bearer ${CFG.SUPABASE_KEY}`}});if(r.ok)S.hw=await r.json()}catch(e){console.warn(e)}}
+async function loadHW(){
+  if(!CFG.SUPABASE_KEY)return;
+  const url=`${CFG.SUPABASE_URL}/rest/v1/homeworks?select=*&order=date_for.asc`;
+  const headers={'apikey':CFG.SUPABASE_KEY,'Authorization':`Bearer ${CFG.SUPABASE_KEY}`,'Content-Type':'application/json'};
+  try{
+    const r=await fetch(url,{headers,mode:'cors'});
+    if(r.ok){S.hw=await r.json();console.log('✓ HW loaded:',S.hw.length);}
+    else console.warn('HW fetch status:',r.status,await r.text());
+  }catch(e){console.warn('HW fetch error:',e);}
+}
 function hwFor(subj){return S.hw.filter(h=>fuzzy(h.subject,subj))}
+// Только ДЗ на конкретную дату (для карточек расписания)
+function hwForDate(subj,dateKey){return S.hw.filter(h=>fuzzy(h.subject,subj)&&h.date_for===dateKey)}
 function fuzzy(a,b){if(!a||!b)return false;const n=s=>s.toLowerCase().replace(/ё/g,'е').replace(/\s+/g,' ').trim();const na=n(a),nb=n(b);if(na===nb||na.includes(nb)||nb.includes(na))return true;const wa=na.split(' '),wb=nb.split(' ');return wa[0]&&wb[0]&&wa[0]===wb[0]&&wa[0].length>4}
-function renderStrip(){const{mon}=weekOf(S.date);const strip=document.getElementById('daysStrip');strip.innerHTML='';for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const dk=key(d),isA=dk===key(S.date);const lessons=filterSG(S.cache[dk]||[]);const hasHW=lessons.some(l=>hwFor(l.discipline).length>0);const pill=document.createElement('div');pill.className='day-pill'+(isA?' active':'')+(hasHW?' has-hw':'');pill.innerHTML=`<span>${d.getDate()}</span><span class="dn">${DNAMES[i]}</span>`;pill.addEventListener('click',()=>pickDay(new Date(d)));strip.appendChild(pill);if(isA)setTimeout(()=>pill.scrollIntoView({inline:'center',behavior:'smooth'}),30)}document.getElementById('headerDate').textContent=fmtD(S.date)}
+function renderStrip(){const{mon}=weekOf(S.date);const strip=document.getElementById('daysStrip');strip.innerHTML='';for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);const dk=key(d),isA=dk===key(S.date);const lessons=filterSG(S.cache[dk]||[]);const hasHW=lessons.some(l=>hwForDate(l.discipline,dk).length>0);const pill=document.createElement('div');pill.className='day-pill'+(isA?' active':'')+(hasHW?' has-hw':'');pill.innerHTML=`<span>${d.getDate()}</span><span class="dn">${DNAMES[i]}</span>`;pill.addEventListener('click',()=>pickDay(new Date(d)));strip.appendChild(pill);if(isA)setTimeout(()=>pill.scrollIntoView({inline:'center',behavior:'smooth'}),30)}document.getElementById('headerDate').textContent=fmtD(S.date)}
 async function pickDay(d){S.date=d;renderStrip();await loadWeekAndRender(d)}
-function renderLessons(date){const lessons=filterSG(S.cache[key(date)]||[]);const el=document.getElementById('lessonsList');if(!lessons.length){el.innerHTML=`<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Занятий нет —<br>можно отдохнуть!</div></div>`;return}el.innerHTML='';lessons.forEach(l=>{const hws=hwFor(l.discipline),hw0=hws[0];const card=document.createElement('div');card.className='lesson-card'+(hw0?' has-hw':'');card.innerHTML=`<div class="lc-top"><div class="lc-subject">${l.discipline||'—'}</div><div class="lc-right"><div class="lc-time">${l.beginLesson||''}–${l.endLesson||''}</div>${hw0?`<button class="hw-toggle">›</button>`:''}</div></div><div class="lc-kind">${l.kindOfWork||''}</div><div class="lc-meta">${l.lecturer?`<span>${l.lecturer}</span>`:''}${l.lecturer&&l.auditorium?`<span class="lc-dot"></span>`:''} ${l.auditorium?`<span>${l.auditorium}${l.building?' '+l.building:''}</span>`:''}</div>${hw0?`<div class="lc-hw">${needsDetailPage(hw0)?`<div class="lc-hw-text">${esc(hw0.task||'')}</div><button class="btn-primary hw-detail-btn">Посмотреть полностью</button>`:`<div style="font-size:13px;color:var(--dim);line-height:1.6">${esc(hw0.task||'')}</div>`}</div>`:""}`; if(hw0){const toggle=card.querySelector('.hw-toggle'),section=card.querySelector('.lc-hw');toggle.addEventListener('click',()=>{const open=section.classList.toggle('open');toggle.classList.toggle('open',open);toggle.textContent=open?'✓':'›'});const fb=card.querySelector('.hw-detail-btn');if(fb)fb.addEventListener('click',()=>openDetail(hw0,l))}el.appendChild(card)})}
+function renderLessons(date){const lessons=filterSG(S.cache[key(date)]||[]);const el=document.getElementById('lessonsList');if(!lessons.length){el.innerHTML=`<div class="empty"><div class="empty-ico">🎉</div><div class="empty-txt">Занятий нет —<br>можно отдохнуть!</div></div>`;return}el.innerHTML='';lessons.forEach(l=>{const hws=hwForDate(l.discipline,key(date)),hw0=hws[0];const card=document.createElement('div');card.className='lesson-card'+(hw0?' has-hw':'');card.innerHTML=`<div class="lc-top"><div class="lc-subject">${l.discipline||'—'}</div><div class="lc-right"><div class="lc-time">${l.beginLesson||''}–${l.endLesson||''}</div>${hw0?`<button class="hw-toggle">›</button>`:''}</div></div><div class="lc-kind">${l.kindOfWork||''}</div><div class="lc-meta">${l.lecturer?`<span>${l.lecturer}</span>`:''}${l.lecturer&&l.auditorium?`<span class="lc-dot"></span>`:''} ${l.auditorium?`<span>${l.auditorium}${l.building?' '+l.building:''}</span>`:''}</div>${hw0?`<div class="lc-hw">${needsDetailPage(hw0)?`<div class="lc-hw-text">${esc(hw0.task||'')}</div><button class="btn-primary hw-detail-btn">Посмотреть полностью</button>`:`<div style="font-size:13px;color:var(--dim);line-height:1.6">${esc(hw0.task||'')}</div>`}</div>`:""}`; if(hw0){const toggle=card.querySelector('.hw-toggle'),section=card.querySelector('.lc-hw');toggle.addEventListener('click',()=>{const open=section.classList.toggle('open');toggle.classList.toggle('open',open);toggle.textContent=open?'✓':'›'});const fb=card.querySelector('.hw-detail-btn');if(fb)fb.addEventListener('click',()=>openDetail(hw0,l))}el.appendChild(card)})}
 function renderSubjects(){const el=document.getElementById('subjectsList');const allL=filterSG(Object.values(S.cache).flat());const seen=new Set(),subjects=[];allL.forEach(l=>{if(l.discipline&&!seen.has(l.discipline)){seen.add(l.discipline);subjects.push(l.discipline)}});if(!subjects.length){el.innerHTML=`<div class="empty"><div class="empty-ico">📚</div><div class="empty-txt">Открой расписание —<br>здесь появятся предметы</div></div>`;return}el.innerHTML='';subjects.forEach(subj=>{const hws=hwFor(subj);const group=document.createElement('div');group.className='subject-group';let rows='';if(!hws.length){rows=`<div class="hw-row"><div class="hw-empty">Домашних заданий нет</div></div>`}else{hws.forEach(hw=>{const d=new Date(hw.date_for);const ds=`${pad(d.getDate())}.${pad(d.getMonth()+1)}`;const dl=S.cache[hw.date_for]||[];const match=dl.find(l=>fuzzy(l.discipline,subj));const kind=match?.kindOfWork||'';rows+=`<div class="hw-row"><div class="hw-row-top"><span class="hw-row-date">${ds}</span><span class="hw-row-kind">${kind}</span><button class="hw-chevron">›</button></div><div class="hw-row-body"><div class="hw-row-task">${esc(hw.task||'')}</div><button class="btn-primary">Посмотреть полностью</button></div></div>`})}group.innerHTML=`<div class="subj-title">${subj}</div>${rows}`;group.querySelectorAll('.hw-chevron').forEach(btn=>{btn.addEventListener('click',()=>{const body=btn.closest('.hw-row').querySelector('.hw-row-body');const open=body.classList.toggle('open');btn.classList.toggle('open',open);btn.textContent=open?'✓':'›'})});group.querySelectorAll('.btn-primary').forEach((btn,i)=>{btn.addEventListener('click',()=>{const hw=hws[i];if(!hw)return;const dl=S.cache[hw.date_for]||[];const lesson=dl.find(l=>fuzzy(l.discipline,subj))||null;openDetail(hw,lesson)})});el.appendChild(group)})}
 function openDetail(hw,lesson){document.getElementById('detailSubject').textContent=hw.subject||lesson?.discipline||'';document.getElementById('detailKind').textContent=lesson?.kindOfWork||'';const d=new Date(hw.date_for);document.getElementById('detailDate').textContent=`${pad(d.getDate())}.${pad(d.getMonth()+1)}`;document.getElementById('detailBody').textContent=hw.task||'';renderAttachments(hw);goView('detail')}
-async function renderAttachments(hw){const el=document.getElementById('attachments');el.innerHTML='';let files=[];try{if(hw.attachment_file_id)files=JSON.parse(hw.attachment_file_id)}catch{}if(!files.length)return;for(const f of files){if(f.type==='photo'&&CFG.BOT_TOKEN){try{const r=await fetch(`https://api.telegram.org/bot${CFG.BOT_TOKEN}/getFile?file_id=${f.file_id}`);const j=await r.json();if(j.ok){const div=document.createElement('div');const photoUrl=`https://api.telegram.org/file/bot${CFG.BOT_TOKEN}/${j.result.file_path}`;div.className='attach-photo';div.innerHTML=`<img src="${photoUrl}" alt="">`;div.onclick=()=>openLightbox(photoUrl);el.appendChild(div)}}catch{}}else if(f.type==='document'){const div=document.createElement('div');div.className='attach-doc';div.innerHTML=`<span style="font-size:22px">📄</span><span>${f.file_name||'Документ'}</span>`;el.appendChild(div)}}}
+async function renderAttachments(hw){
+  const el=document.getElementById('attachments');el.innerHTML='';
+  let files=[];
+  try{if(hw.attachment_file_id)files=JSON.parse(hw.attachment_file_id)}catch{}
+  if(!files.length)return;
+  for(const f of files){
+    const div=document.createElement('div');
+    if(f.type==='photo'){
+      const proxy=CFG.PHOTO_PROXY||CFG.BOT_TOKEN;
+      if(!proxy){
+        // Нет прокси — показываем заглушку
+        div.className='attach-photo';
+        div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--dim)">🖼️</div>';
+        el.appendChild(div);
+        continue;
+      }
+      // Используем прокси если настроен, иначе напрямую через токен (только для localhost)
+      let photoUrl;
+      if(CFG.PHOTO_PROXY){
+        photoUrl=`${CFG.PHOTO_PROXY}/photo?file_id=${encodeURIComponent(f.file_id)}`;
+      } else {
+        try{
+          const r=await fetch(`https://api.telegram.org/bot${CFG.BOT_TOKEN}/getFile?file_id=${f.file_id}`);
+          const j=await r.json();
+          if(!j.ok)continue;
+          photoUrl=`https://api.telegram.org/file/bot${CFG.BOT_TOKEN}/${j.result.file_path}`;
+        }catch{continue}
+      }
+      div.className='attach-photo';
+      div.innerHTML=`<img src="${photoUrl}" alt="" loading="lazy">`;
+      div.onclick=()=>openLightbox(photoUrl);
+      el.appendChild(div);
+    } else if(f.type==='document'){
+      div.className='attach-doc';
+      div.innerHTML=`<span style="font-size:22px">📄</span><span>${f.file_name||'Документ'}</span>`;
+      el.appendChild(div);
+    }
+  }
+}
 function bindCalendar(){document.getElementById('calBtn').addEventListener('click',openCal);document.getElementById('calOverlay').addEventListener('click',e=>{if(e.target===e.currentTarget)closeCal()});document.getElementById('calPrev').addEventListener('click',()=>{S.calDate.setMonth(S.calDate.getMonth()-1);drawCal()});document.getElementById('calNext').addEventListener('click',()=>{S.calDate.setMonth(S.calDate.getMonth()+1);drawCal()})}
 function openCal(){S.calDate=new Date(S.date);drawCal();document.getElementById('calOverlay').classList.add('open')}
 function closeCal(){document.getElementById('calOverlay').classList.remove('open')}
