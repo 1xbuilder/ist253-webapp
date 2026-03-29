@@ -339,7 +339,7 @@ button{font-family:inherit;cursor:pointer}
       <button class="nav-tab active" data-view="schedule">Расписание</button>
       <button class="nav-tab"        data-view="subjects">Предметы</button>
     </div>
-    <div class="nav-avatar">👤</div>
+    <div class="nav-avatar" onclick="document.getElementById('subgroupOverlay').classList.add('open')" title="Сменить подгруппу" style="cursor:pointer;position:relative"><span id="subgroupBadge" style="position:absolute;top:-4px;right:-4px;background:var(--accent);border-radius:50%;width:18px;height:18px;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center"></span>👤</div>
   </div>
 </div>
 
@@ -373,9 +373,10 @@ const S = {
   date:      new Date(),
   view:      'schedule',
   prevView:  'schedule',
-  cache:     {},      // 'YYYY-MM-DD' → lessons[]
+  cache:     {},
   hw:        [],
   calDate:   new Date(),
+  subgroup:  localStorage.getItem('subgroup') || null,
 };
 
 const MONTHS = ['Январь','Февраль','Март','Апрель','Май','Июнь',
@@ -391,6 +392,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     Telegram.WebApp.ready();
     Telegram.WebApp.expand();
   }
+  checkSubgroupOnLoad();
   bindNav();
   bindCalendar();
   await loadHW();
@@ -539,7 +541,7 @@ async function pickDay(d) {
 //  🗓  SCHEDULE RENDER
 // ╚══════════════════════════════════════════════════════════╝
 function renderLessons(date) {
-  const lessons = S.cache[key(date)] || [];
+  const lessons = filterBySubgroup(S.cache[key(date)] || []);
   const el = document.getElementById('lessonsList');
 
   if (!lessons.length) {
@@ -770,9 +772,50 @@ function addCalCell(g, date, other, today) {
 // ╔══════════════════════════════════════════════════════════╗
 //  🛡  UTILS
 // ╚══════════════════════════════════════════════════════════╝
+
+// ╔══════════════════════════════════════════════════════════╗
+//  👥  SUBGROUP
+// ╚══════════════════════════════════════════════════════════╝
+function setSubgroup(sg) {
+  S.subgroup = sg;
+  localStorage.setItem('subgroup', sg);
+  document.getElementById('subgroupOverlay').classList.remove('open');
+  const badge = document.getElementById('subgroupBadge');
+  if (badge) badge.textContent = sg;
+  renderStrip();
+  loadWeekAndRender(S.date);
+}
+
+function filterBySubgroup(lessons) {
+  if (!S.subgroup) return lessons;
+  const other = S.subgroup === '1' ? '/2' : '/1';
+  return lessons.filter(l => !l.discipline || !l.discipline.includes(other));
+}
+
+function checkSubgroupOnLoad() {
+  const badge = document.getElementById('subgroupBadge');
+  if (badge && S.subgroup) badge.textContent = S.subgroup;
+  if (!S.subgroup) {
+    document.getElementById('subgroupOverlay').classList.add('open');
+  }
+}
+
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/\n/g,'<br>');
 }
 </script>
+
+<!-- ═══ SUBGROUP OVERLAY ═══ -->
+<div class="cal-overlay" id="subgroupOverlay" style="padding-top:0;align-items:center;justify-content:center">
+  <div class="cal-modal" style="text-align:center">
+    <div style="font-size:28px;margin-bottom:12px">👋</div>
+    <div style="font-size:16px;font-weight:700;margin-bottom:8px">Выбери свою подгруппу</div>
+    <div style="font-size:13px;color:var(--dim);margin-bottom:20px">Расписание будет отфильтровано под тебя</div>
+    <div style="display:flex;gap:10px">
+      <button class="btn-primary" style="flex:1;padding:14px;font-size:15px" onclick="setSubgroup('1')">Подгруппа 1</button>
+      <button class="btn-primary" style="flex:1;padding:14px;font-size:15px;background:var(--surface2);border:1px solid var(--border)" onclick="setSubgroup('2')">Подгруппа 2</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
