@@ -247,7 +247,15 @@ const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:
 const S={date:new Date(),view:'schedule',prevView:'schedule',cache:{},hw:[],calDate:new Date(),subgroup:localStorage.getItem('subgroup')||null,theme:localStorage.getItem('theme')||'default',bg:localStorage.getItem('bg')||'none',tgUser:null};
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DNAMES=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-const PROXY='https://corsproxy.io/?';
+// Список CORS-прокси. Пробуем по очереди — если один не работает,
+// fetchWeek автоматически попробует следующий.
+// ВАЖНО: corsproxy.io с 2025г. требует API-ключ для production-доменов
+// (бесплатно работает только с localhost/github.io). Поэтому он в конце списка.
+const PROXIES=[
+  'https://proxy.corsfix.com/?',          // 60 req/min, бесплатно, без ключа
+  'https://api.allorigins.win/raw?url=',  // запасной
+  'https://corsproxy.io/?url=',           // работает только с github.io/localhost без ключа
+];
 const THEMES=[{id:'default',label:'Синий',c:['#091828','#2563eb','#3b82f6']},{id:'midnight',label:'Фиолет',c:['#06040f','#7c3aed','#a78bfa']},{id:'aurora',label:'Аврора',c:['#041510','#10b981','#34d399']},{id:'sunset',label:'Закат',c:['#150a04','#ea580c','#fb923c']},{id:'ocean',label:'Океан',c:['#040d1a','#0891b2','#22d3ee']},{id:'sakura',label:'Сакура',c:['#140810','#db2777','#f472b6']}];
 const BGS=[{id:'none',label:'Нет',ico:'⬛'},{id:'dots',label:'Точки',ico:'⠿'},{id:'grid',label:'Сетка',ico:'#'},{id:'circuit',label:'Схема',ico:'⊞'},{id:'aurora',label:'Свет',ico:'✦'}];
 const key=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -284,7 +292,22 @@ async function setSubgroup(sg){
 }
 function bindNav(){document.querySelectorAll('.nav-tab').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));document.getElementById('profileBtn').addEventListener('click',()=>goView('profile'));document.getElementById('backBtn').addEventListener('click',()=>goView(S.prevView))}
 function goView(name){if(name==='detail')S.prevView=S.view;S.view=name;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${name}`).classList.add('active');document.querySelectorAll('.nav-tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));document.getElementById('profileBtn').classList.toggle('active-tab',name==='profile');document.querySelector('.bottom-nav').style.display=name==='detail'?'none':'';if(name==='subjects')renderSubjects()}
-async function fetchWeek(mon,sun){const url=`https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;for(const src of[PROXY+encodeURIComponent(url),url]){try{const r=await fetch(src,{headers:{'Accept':'application/json'}});if(r.ok)return await r.json()}catch{}}return[]}
+async function fetchWeek(mon,sun){
+  const url=`https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;
+  // Сначала прямой запрос (вдруг ОмГТУ когда-нибудь добавит CORS), потом по прокси
+  const sources=[url, ...PROXIES.map(p=>p+encodeURIComponent(url))];
+  for(const src of sources){
+    try{
+      const r=await fetch(src,{headers:{'Accept':'application/json'}});
+      if(!r.ok){console.warn('[schedule] HTTP',r.status,'via',src.slice(0,60));continue}
+      const data=await r.json();
+      if(Array.isArray(data)&&data.length>=0){console.log('[schedule] OK via',src.slice(0,60),'lessons:',data.length);return data}
+      console.warn('[schedule] unexpected payload via',src.slice(0,60),data);
+    }catch(e){console.warn('[schedule] fetch failed via',src.slice(0,60),e.message)}
+  }
+  console.error('[schedule] ALL sources failed for',url);
+  return[];
+}
 async function loadWeekAndRender(date){const k=key(date);if(!S.cache[k]){document.getElementById('lessonsList').innerHTML='<div class="loader"><div class="spinner"></div>Загрузка...</div>';const{mon,sun}=weekOf(date);const lessons=await fetchWeek(mon,sun);lessons.forEach(l=>{const dk=l.date?l.date.replace(/\./g,'-'):'';if(dk){if(!S.cache[dk])S.cache[dk]=[];S.cache[dk].push(l)}});for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);if(!S.cache[key(d)])S.cache[key(d)]=[]}}renderLessons(date);renderStrip()}
 function filterSG(lessons){if(!S.subgroup)return lessons;const otherSub=S.subgroup==='1'?'2':'1';return lessons.filter(l=>{const disc=(l.discipline||'').toLowerCase();const stream=(l.stream||l.subGroup||l.subgroup||l.group||'').toLowerCase();if((disc+' '+stream).includes('/'+otherSub))return false;return true;})}
 async function loadHW(){
