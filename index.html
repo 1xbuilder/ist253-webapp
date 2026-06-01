@@ -4,7 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#F5F7FA">
-<title>ИСТ-253</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 56 40' fill='none'><g stroke='%232A5CAA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'><path d='M5 10 L19 8 L19 32 L5 30 Z' fill='white'/><path d='M19 8 L28 9 L33 14 L33 32 L19 32 Z' fill='white'/><path d='M19 8 V32'/></g><path d='M28 9 L52 2 L43 16 L33 14 Z' fill='%23FF7A42'/><path d='M52 2 L43 16 L37 11 Z' fill='%23E5651C'/></svg>">
+<title>StudyFlow</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,11 +34,15 @@ html,body{height:100%;overflow:hidden;-webkit-tap-highlight-color:transparent}
 body{font-family:'Inter','Roboto',system-ui,-apple-system,sans-serif;font-feature-settings:'cv11','ss01';background:var(--bg);color:var(--text);max-width:430px;margin:0 auto;position:relative;z-index:1;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
 button{font-family:inherit;cursor:pointer;border:none;outline:none}
 .app{display:flex;flex-direction:column;height:100vh;height:100dvh}
+.app-brand{display:flex;align-items:center;gap:9px;padding:12px 20px 6px;user-select:none}
+.brand-mark{width:36px;height:26px;flex-shrink:0;display:block}
+.brand-wordmark{font-family:'Inter','Roboto',sans-serif;font-weight:800;font-size:18px;letter-spacing:-.3px;color:var(--text);line-height:1}
+.brand-wordmark .b-accent{color:var(--accent2)}
 .views{flex:1;overflow:hidden;position:relative}
 .view{position:absolute;inset:0;overflow-y:auto;padding-bottom:88px;opacity:0;pointer-events:none;transition:opacity .18s ease;scrollbar-width:none}
 .view::-webkit-scrollbar{display:none}
 .view.active{opacity:1;pointer-events:all}
-.header{padding:14px 20px 10px;display:flex;align-items:center;justify-content:space-between}
+.header{padding:6px 20px 10px;display:flex;align-items:center;justify-content:space-between}
 .header-date{font-size:18px;font-weight:700;letter-spacing:.3px}
 .icon-btn{width:38px;height:38px;border-radius:11px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--accent2);font-size:17px;transition:background .15s;box-shadow:var(--shadow)}
 .icon-btn:active{background:var(--surface2)}
@@ -66,7 +71,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
 .lc-hw-text{font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:10px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .btn-primary{width:100%;padding:11px;background:var(--accent);border-radius:10px;color:#fff;font-size:13px;font-weight:600;transition:opacity .15s,transform .1s;box-shadow:0 2px 8px rgba(42,92,170,.22)}
 .btn-primary:active{opacity:.9;transform:translateY(1px)}
-.page-header{padding:14px 20px 10px;font-size:18px;font-weight:700}
+.page-header{padding:6px 20px 10px;font-size:18px;font-weight:700}
 .subject-group{margin:0 14px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
 .subj-title{padding:13px 14px;font-size:14px;font-weight:700}
 .hw-row{border-top:1px solid var(--border);padding:11px 14px}
@@ -79,7 +84,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
 .hw-row-body.open{display:block}
 .hw-row-task{font-size:13px;color:var(--dim);line-height:1.6;margin-bottom:10px}
 .hw-empty{font-size:12px;color:var(--muted);padding:10px 0}
-.detail-header{padding:12px 14px 8px;display:flex;align-items:center;gap:12px}
+.detail-header{padding:6px 14px 8px;display:flex;align-items:center;gap:12px}
 .detail-meta{flex:1;min-width:0}
 .detail-subject{font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .detail-kind{font-size:12px;color:var(--dim);margin-top:2px}
@@ -90,7 +95,7 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
 .attach-photo img{width:100%;height:100%;object-fit:cover;display:block}
 .attach-doc{border-radius:11px;background:var(--surface);border:1px solid var(--border);padding:12px;display:flex;align-items:center;gap:10px;font-size:13px;grid-column:1/-1}
 /* PROFILE */
-.profile-hero{display:flex;flex-direction:column;align-items:center;padding:28px 20px 20px}
+.profile-hero{display:flex;flex-direction:column;align-items:center;padding:14px 20px 20px}
 .avatar-wrap{position:relative;width:92px;height:92px;margin-bottom:16px}
 .avatar-ring{position:absolute;inset:-3px;border-radius:50%;padding:3px;background:linear-gradient(135deg,var(--accent),var(--accent2),var(--green))}
 .avatar-inner{width:100%;height:100%;border-radius:50%;overflow:hidden;background:var(--surface2);border:3px solid var(--bg);display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:700;color:var(--accent2);position:relative}
@@ -162,6 +167,25 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
 </head>
 <body>
 <div class="app">
+  <div class="app-brand">
+    <svg class="brand-mark" viewBox="0 0 56 40" xmlns="http://www.w3.org/2000/svg" fill="none" aria-hidden="true">
+      <g stroke="var(--accent)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 10 L19 8 L19 32 L5 30 Z" fill="var(--surface)"/>
+        <path d="M19 8 L28 9 L33 14 L33 32 L19 32 Z" fill="var(--surface)"/>
+        <path d="M19 8 V32"/>
+      </g>
+      <g stroke="var(--muted)" stroke-width="1.2" stroke-linecap="round" opacity=".55">
+        <path d="M8 14 L16 13.2"/>
+        <path d="M8 18 L16 17.2"/>
+        <path d="M8 22 L14 21.4"/>
+        <path d="M22 19 L30 19.8"/>
+        <path d="M22 23 L30 23.8"/>
+      </g>
+      <path d="M28 9 L52 2 L43 16 L33 14 Z" fill="var(--accent2)"/>
+      <path d="M52 2 L43 16 L37 11 Z" fill="#E5651C"/>
+    </svg>
+    <span class="brand-wordmark">Study<span class="b-accent">Flow</span></span>
+  </div>
   <div class="views">
     <div class="view active" id="view-schedule">
       <div class="header">
