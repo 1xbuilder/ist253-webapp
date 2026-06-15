@@ -18,24 +18,21 @@ import json
 # а провайдер — из заведения. Нет провайдера/ID -> расписания нет, ручной ввод.
 
 async def fetch_lessons_for_date(date_obj, provider, external_id) -> list:
-    """Запрашивает расписание на конкретный день у провайдера заведения."""
+    """Тонкая обёртка над реестром провайдеров. Возвращает пары в общем
+    формате [{'discipline', ...}]. Провайдер инкапсулирует детали вуза."""
     if not provider or not external_id:
         return []
-    if provider == "omgtu":
-        date_str = date_obj.strftime("%Y.%m.%d")
-        url = (f"https://rasp.omgtu.ru/api/schedule/group/{external_id}"
-               f"?start={date_str}&finish={date_str}&lng=1")
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=aiohttp.ClientTimeout(total=8)) as r:
-                    if r.status == 200:
-                        data = await r.json(content_type=None)
-                        return data if isinstance(data, list) else []
-        except Exception as e:
-            print(f"Ошибка загрузки расписания (omgtu): {e}")
+    from providers import get_provider
+    p = get_provider(provider)
+    if not p:
         return []
-    # Другие провайдеры можно добавить здесь.
-    return []
+    try:
+        return await p.fetch_lessons(external_id, date_obj)
+    except Exception as e:
+        print(f"fetch_lessons_for_date error ({provider}): {e}")
+        return []
+
+
 
 
 def get_subjects_for_subgroup(lessons: list, subgroup: str):

@@ -185,6 +185,24 @@ async def global_admin_callback(callback_query: types.CallbackQuery, state: FSMC
         await GlobalAdmin.waiting_for_institution_name.set()
         await callback_query.answer()
         return
+    if data.startswith("adm_instprov_"):
+        prov = data.replace("adm_instprov_", "")
+        prov = None if prov == "none" else prov
+        st = await state.get_data()
+        if not st.get("inst_name"):
+            await callback_query.answer("Сессия истекла, начни заново", show_alert=True)
+            await state.finish()
+            return
+        inst = create_institution(name=st["inst_name"], city=st.get("inst_city"),
+                                  schedule_provider=prov)
+        await state.finish()
+        label = prov if prov else "без расписания"
+        await callback_query.message.answer(
+            f"Заведение «{inst.name if inst else st['inst_name']}» добавлено "
+            f"(расписание: {label})."
+        )
+        await callback_query.answer("Готово")
+        return
     if data.startswith("adm_inst_view_"):
         await _show_institution(callback_query, int(data.replace("adm_inst_view_", "")))
         return
@@ -237,6 +255,36 @@ async def global_admin_callback(callback_query: types.CallbackQuery, state: FSMC
         return
     if data.startswith("adm_group_members_"):
         await _show_group_members_admin(callback_query, int(data.replace("adm_group_members_", "")))
+        return
+    if data.startswith("adm_group_sched_"):
+        gid = int(data.replace("adm_group_sched_", ""))
+        await state.update_data(sched_group_id=gid)
+        await callback_query.message.answer(
+            "Введи ID группы для расписания.\n"
+            "• ОмГТУ — числовой id (например 427)\n"
+            "• Авиаколледж (oat) — путь вида ul_lenina_24/КС115\n\n"
+            "Или напиши «-», чтобы очистить."
+        )
+        await GlobalAdmin.waiting_for_schedule_id.set()
+        await callback_query.answer()
+        return
+    if data.startswith("adm_gm_"):
+        _, _, gid, uid = data.split("_")
+        await _show_group_member_card(callback_query, int(gid), int(uid))
+        return
+    if data.startswith("adm_gmrole_"):
+        rest = data.replace("adm_gmrole_", "")
+        gid, uid, role = rest.split("_")
+        set_member_role(int(gid), int(uid), role)
+        await callback_query.answer("Роль изменена")
+        await _show_group_member_card(callback_query, int(gid), int(uid))
+        return
+    if data.startswith("adm_gmkick_"):
+        rest = data.replace("adm_gmkick_", "")
+        gid, uid = rest.split("_")
+        remove_member(int(gid), int(uid))
+        await callback_query.answer("Удалён из группы")
+        await _show_group_members_admin(callback_query, int(gid))
         return
 
     # ── РАЗДЕЛ: ПОЛЬЗОВАТЕЛИ ──
@@ -373,6 +421,7 @@ async def _show_group(cb, gid):
             f"ID расписания: {g.external_schedule_id or 'не задан'}")
     kb = InlineKeyboardMarkup(row_width=1)
     kb.add(InlineKeyboardButton("👥 Участники", callback_data=f"adm_group_members_{gid}"))
+    kb.add(InlineKeyboardButton("📅 Задать ID расписания", callback_data=f"adm_group_sched_{gid}"))
     kb.add(InlineKeyboardButton("🗑 Удалить группу", callback_data=f"adm_group_del_{gid}"))
     kb.add(InlineKeyboardButton("◀️ Назад", callback_data=f"adm_groups_inst_{g.institution_id}"))
     await _edit(cb, text, kb)
@@ -380,15 +429,41 @@ async def _show_group(cb, gid):
 
 async def _show_group_members_admin(cb, gid):
     members = list_group_members(gid)
-    lines = ["Участники:\n"]
+    kb = InlineKeyboardMarkup(row_width=1)
     for m in members:
         u = get_user_by_telegram_id(telegram_id=m.user_id)
         name = u.first_name if u else str(m.user_id)
-        handle = f" (@{u.username})" if u and u.username else ""
-        lines.append(f"{_role_label(m.group_role)} — {name}{handle}")
-    kb = InlineKeyboardMarkup(row_width=1)
+        kb.add(InlineKeyboardButton(f"{_role_label(m.group_role)} — {name}",
+                                    callback_data=f"adm_gm_{gid}_{m.user_id}"))
     kb.add(InlineKeyboardButton("◀️ Назад", callback_data=f"adm_group_view_{gid}"))
-    await _edit(cb, "\n".join(lines) if len(lines) > 1 else "В группе нет участников.", kb)
+    await _edit(cb, "Участники группы (нажми, чтобы изменить роль):" if members
+                else "В группе нет участников.", kb)
+
+
+async def _show_group_member_card(cb, gid, uid):
+    """Карточка участника группы с действиями — доступно админу для любой группы."""
+    m = get_membership(gid, uid)
+    if not m:
+        await cb.answer("Участник не найден", show_alert=True)
+        return
+    u = get_user_by_telegram_id(telegram_id=uid)
+    name = u.first_name if u else str(uid)
+    handle = f"@{u.username}" if u and u.username else "—"
+    g = get_group_by_id(gid)
+    text = (f"Участник: {name}\n"
+            f"Username: {handle}\n"
+            f"Группа: {g.name if g else gid}\n"
+            f"Роль в группе: {_role_label(m.group_role)}")
+    kb = InlineKeyboardMarkup(row_width=1)
+    if m.group_role != "owner":
+        kb.add(InlineKeyboardButton("👑 Сделать старостой", callback_data=f"adm_gmrole_{gid}_{uid}_owner"))
+    if m.group_role != "helper":
+        kb.add(InlineKeyboardButton("🛠 Сделать помощником", callback_data=f"adm_gmrole_{gid}_{uid}_helper"))
+    if m.group_role != "member":
+        kb.add(InlineKeyboardButton("👤 Сделать участником", callback_data=f"adm_gmrole_{gid}_{uid}_member"))
+    kb.add(InlineKeyboardButton("❌ Удалить из группы", callback_data=f"adm_gmkick_{gid}_{uid}"))
+    kb.add(InlineKeyboardButton("◀️ К участникам", callback_data=f"adm_group_members_{gid}"))
+    await _edit(cb, text, kb)
 
 
 async def _show_user(cb, uid):
@@ -432,14 +507,21 @@ async def process_institution_city(message: types.Message, state: FSMContext):
     city = message.text.strip()
     city = None if city in ("-", "—") else city
     await state.update_data(inst_city=city)
-    await message.answer(
-        "Провайдер расписания? Введи код провайдера (например omgtu) "
-        "или напиши «-», если расписания нет:"
-    )
+    # Провайдер выбирается кнопками из реестра — чтобы не ошибиться в коде.
+    from providers import REGISTRY
+    kb = InlineKeyboardMarkup(row_width=1)
+    for key, mod in REGISTRY.items():
+        title = getattr(mod, "NAME", key)
+        kb.add(InlineKeyboardButton(f"{title} ({key})",
+                                    callback_data=f"adm_instprov_{key}"))
+    kb.add(InlineKeyboardButton("Без расписания", callback_data="adm_instprov_none"))
+    await message.answer("Выбери провайдера расписания для этого заведения:",
+                         reply_markup=kb)
     await GlobalAdmin.waiting_for_institution_provider.set()
 
 
 async def process_institution_provider(message: types.Message, state: FSMContext):
+    # Резерв: если админ ввёл провайдер текстом (а не кнопкой).
     prov = message.text.strip()
     prov = None if prov in ("-", "—") else prov
     data = await state.get_data()
@@ -472,3 +554,25 @@ async def process_user_search(message: types.Message, state: FSMContext):
         kb.add(InlineKeyboardButton(f"{u.first_name}{handle}",
                                     callback_data=f"adm_user_view_{u.user_id}"))
     await message.answer(f"Найдено: {len(found)}", reply_markup=kb)
+
+
+async def process_schedule_id(message: types.Message, state: FSMContext):
+    val = message.text.strip()
+    if val.startswith("/"):
+        await state.finish()
+        await message.answer("Отменено.", reply_markup=get_main_keyboard(message.from_user.id))
+        return
+    data = await state.get_data()
+    gid = data.get("sched_group_id")
+    await state.finish()
+    if not gid:
+        await message.answer("Не понял, для какой группы. Открой группу в /admin заново.",
+                             reply_markup=get_main_keyboard(message.from_user.id))
+        return
+    new_val = None if val in ("-", "—") else val
+    update_group(gid, external_schedule_id=new_val)
+    g = get_group_by_id(gid)
+    await message.answer(
+        f"ID расписания для «{g.name if g else gid}» обновлён: {new_val or 'очищен'}.",
+        reply_markup=get_main_keyboard(message.from_user.id)
+    )

@@ -17,13 +17,18 @@ from providers import get_provider
 async def start_schedule_binding(message: types.Message, state: FSMContext,
                                  group_id: int):
     """Точка входа после создания группы. Решает, нужен ли выбор расписания."""
+    import logging
+    log = logging.getLogger("schedule_setup")
     group = get_group_by_id(group_id)
     inst = get_institution_by_id(group.institution_id) if group else None
     provider_key = inst.schedule_provider if inst else None
     provider = get_provider(provider_key) if provider_key else None
+    log.info(f"schedule_binding: group={group_id} inst={getattr(inst,'id',None)} "
+             f"provider_key={provider_key!r} provider={'есть' if provider else 'нет'}")
 
     # Нет провайдера — расписания у вуза нет, сразу к подгруппе.
     if not provider:
+        log.info("schedule_binding: провайдера нет — сразу к подгруппе")
         await _go_to_subgroup(message, state, created=True, group_name=group.name)
         return
 
@@ -32,6 +37,7 @@ async def start_schedule_binding(message: types.Message, state: FSMContext,
     # Провайдер с выбором (есть корпуса или список групп) — показываем корпуса.
     if getattr(provider, "supports_group_picker", False):
         campuses = provider.list_campuses()
+        log.info(f"schedule_binding: picker=True, корпусов={len(campuses)}")
         if campuses:
             kb = InlineKeyboardMarkup(row_width=1)
             for c in campuses:

@@ -341,8 +341,20 @@ async def process_group_name(message: types.Message, state: FSMContext):
     mark_invite_used(code)
 
     # Привязка расписания (выбор корпус→группа, если провайдер поддерживает).
-    from handlers.schedule_setup import start_schedule_binding
-    await start_schedule_binding(message, state, group.id)
+    try:
+        from handlers.schedule_setup import start_schedule_binding
+        await start_schedule_binding(message, state, group.id)
+    except Exception as e:
+        import logging
+        logging.getLogger("start").exception(f"Ошибка привязки расписания: {e}")
+        # Подстраховка: не ломаем онбординг, идём к подгруппе.
+        await state.finish()
+        await message.answer(
+            f"Группа «{group.name}» создана, ты её староста.\n\n"
+            "Укажи свою подгруппу:",
+            reply_markup=subgroup_keyboard(),
+        )
+        await UserRegistration.waiting_for_subgroup.set()
 
 
 # ── Подгруппа ──────────────────────────────────────────────────────────────────
