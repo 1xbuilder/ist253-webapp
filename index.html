@@ -270,8 +270,18 @@ button{font-family:inherit;cursor:pointer;border:none;outline:none}
   </div>
 </div>
 <script>
-const CFG={SUPABASE_URL:'https://szcohyjidtbpqjmjyesc.supabase.co',SUPABASE_KEY:'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InN6Y29oeWppZHRicHFqbWp5ZXNjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3NDUwNzYsImV4cCI6MjA5MDMyMTA3Nn0.Ac5cLTZpeu-3HQAZGCLpid583c4MMXczxKYYcvycWHE',BOT_TOKEN:'6029878031:AAEUZ9VMhOzYsLQR5Lu3HMlU7XX5TCjUZbk',PHOTO_PROXY:'',GROUP_ID:427};
-const S={date:new Date(),view:'schedule',prevView:'schedule',cache:{},hw:[],calDate:new Date(),subgroup:localStorage.getItem('subgroup')||null,theme:localStorage.getItem('theme')||'default',bg:localStorage.getItem('bg')||'none',tgUser:null};
+// Конфиг. SUPABASE_KEY — это ПУБЛИЧНЫЙ anon-ключ нового проекта (можно в вебаппе).
+// НЕ вставляй сюда service_role и BOT_TOKEN — они секретные.
+// SCHEDULE_API — URL HTTP-эндпоинта бота для расписания (для oat и др. без API).
+//   Пока бот не отдаёт эндпоинт — оставь пустым, omgtu грузится напрямую.
+const CFG={
+  SUPABASE_URL:'https://ygqqyxhgrjjplqrqlzli.supabase.co',
+  SUPABASE_KEY:'ВСТАВЬ_ANON_КЛЮЧ_НОВОГО_ПРОЕКТА',
+  SCHEDULE_API:'' // напр. 'https://xxx.bothost.ru/api' — заполнится, когда узнаем URL бота
+};
+// Активная группа пользователя (заполняется из Supabase при старте):
+//   {id, name, external_schedule_id, provider}
+const S={date:new Date(),view:'schedule',prevView:'schedule',cache:{},hw:[],calDate:new Date(),subgroup:localStorage.getItem('subgroup')||null,theme:localStorage.getItem('theme')||'default',bg:localStorage.getItem('bg')||'none',tgUser:null,group:null};
 const MONTHS=['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
 const DNAMES=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
 // Список CORS-прокси. Каждая запись — функция, строящая итоговый URL.
@@ -325,9 +335,43 @@ async function setSubgroup(sg){
 }
 function bindNav(){document.querySelectorAll('.nav-tab').forEach(b=>b.addEventListener('click',()=>goView(b.dataset.view)));document.getElementById('profileBtn').addEventListener('click',()=>goView('profile'));document.getElementById('backBtn').addEventListener('click',()=>goView(S.prevView))}
 function goView(name){if(name==='detail')S.prevView=S.view;S.view=name;document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(`view-${name}`).classList.add('active');document.querySelectorAll('.nav-tab').forEach(b=>b.classList.toggle('active',b.dataset.view===name));document.getElementById('profileBtn').classList.toggle('active-tab',name==='profile');document.querySelector('.bottom-nav').style.display=name==='detail'?'none':'';if(name==='subjects')renderSubjects()}
+async function loadActiveGroup(){
+  if(!CFG.SUPABASE_KEY||CFG.SUPABASE_KEY.startsWith('ВСТАВЬ')||!S.tgUser?.id)return null;
+  const H={'apikey':CFG.SUPABASE_KEY,'Authorization':`Bearer ${CFG.SUPABASE_KEY}`};
+  try{
+    const ru=await fetch(`${CFG.SUPABASE_URL}/rest/v1/users?user_id=eq.${S.tgUser.id}&select=active_group_id,subgroup`,{headers:H});
+    const us=await ru.json();
+    if(!us?.length||!us[0].active_group_id)return null;
+    if(us[0].subgroup&&!localStorage.getItem('subgroup')){S.subgroup=us[0].subgroup;localStorage.setItem('subgroup',S.subgroup)}
+    const gid=us[0].active_group_id;
+    const rg=await fetch(`${CFG.SUPABASE_URL}/rest/v1/groups?id=eq.${gid}&select=id,name,external_schedule_id,institution_id`,{headers:H});
+    const gs=await rg.json();
+    if(!gs?.length)return null;
+    const g=gs[0];
+    let provider=null;
+    if(g.institution_id){
+      const ri=await fetch(`${CFG.SUPABASE_URL}/rest/v1/institutions?id=eq.${g.institution_id}&select=schedule_provider`,{headers:H});
+      const is=await ri.json();
+      provider=is?.length?is[0].schedule_provider:null;
+    }
+    S.group={id:g.id,name:g.name,external_schedule_id:g.external_schedule_id,provider};
+    return S.group;
+  }catch(e){console.warn('loadActiveGroup',e);return null}
+}
+
 async function fetchWeek(mon,sun){
-  const url=`https://rasp.omgtu.ru/api/schedule/group/${CFG.GROUP_ID}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;
-  // Сначала прямой запрос (вдруг ОмГТУ когда-нибудь добавит CORS), потом по прокси
+  const g=S.group;
+  if(!g||!g.external_schedule_id)return [];
+  if(CFG.SCHEDULE_API){
+    try{
+      const u=`${CFG.SCHEDULE_API}/schedule?group=${encodeURIComponent(g.external_schedule_id)}&provider=${encodeURIComponent(g.provider||'')}&start=${fmtA(mon)}&finish=${fmtA(sun)}`;
+      const r=await fetch(u,{headers:{'Accept':'application/json'}});
+      if(r.ok){const d=await r.json();return Array.isArray(d)?d:(d.lessons||[])}
+    }catch(e){console.warn('schedule api',e)}
+    return [];
+  }
+  if(g.provider!=='omgtu')return [];
+  const url=`https://rasp.omgtu.ru/api/schedule/group/${g.external_schedule_id}?start=${fmtA(mon)}&finish=${fmtA(sun)}&lng=1`;
   const sources=[url, ...PROXIES.map(fn=>fn(url))];
   for(const src of sources){
     const tag=src.length>70?src.slice(0,70)+'…':src;
@@ -359,8 +403,11 @@ async function fetchWeek(mon,sun){
 async function loadWeekAndRender(date){const k=key(date);if(!S.cache[k]){document.getElementById('lessonsList').innerHTML='<div class="loader"><div class="spinner"></div>Загрузка...</div>';const{mon,sun}=weekOf(date);const lessons=await fetchWeek(mon,sun);lessons.forEach(l=>{const dk=l.date?l.date.replace(/\./g,'-'):'';if(dk){if(!S.cache[dk])S.cache[dk]=[];S.cache[dk].push(l)}});for(let i=0;i<7;i++){const d=new Date(mon);d.setDate(mon.getDate()+i);if(!S.cache[key(d)])S.cache[key(d)]=[]}}renderLessons(date);renderStrip()}
 function filterSG(lessons){if(!S.subgroup)return lessons;const otherSub=S.subgroup==='1'?'2':'1';return lessons.filter(l=>{const disc=(l.discipline||'').toLowerCase();const stream=(l.stream||l.subGroup||l.subgroup||l.group||'').toLowerCase();if((disc+' '+stream).includes('/'+otherSub))return false;return true;})}
 async function loadHW(){
-  if(!CFG.SUPABASE_KEY)return;
-  const url=`${CFG.SUPABASE_URL}/rest/v1/homeworks?select=*&order=date_for.asc`;
+  if(!CFG.SUPABASE_KEY||CFG.SUPABASE_KEY.startsWith('ВСТАВЬ'))return;
+  // ДЗ только активной группы пользователя.
+  const gid=S.group?.id;
+  if(!gid){S.hw=[];return}
+  const url=`${CFG.SUPABASE_URL}/rest/v1/homeworks?group_id=eq.${gid}&select=*&order=date_for.asc`;
   const headers={'apikey':CFG.SUPABASE_KEY,'Authorization':`Bearer ${CFG.SUPABASE_KEY}`,'Content-Type':'application/json'};
   try{
     const r=await fetch(url,{headers,mode:'cors'});
@@ -385,26 +432,14 @@ async function renderAttachments(hw){
   for(const f of files){
     const div=document.createElement('div');
     if(f.type==='photo'){
-      const proxy=CFG.PHOTO_PROXY||CFG.BOT_TOKEN;
-      if(!proxy){
-        // Нет прокси — показываем заглушку
+      // Фото грузим через эндпоинт бота (SCHEDULE_API). Токен в вебапп не кладём.
+      if(!CFG.SCHEDULE_API){
         div.className='attach-photo';
         div.innerHTML='<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;color:var(--dim)">🖼️</div>';
         el.appendChild(div);
         continue;
       }
-      // Используем прокси если настроен, иначе напрямую через токен (только для localhost)
-      let photoUrl;
-      if(CFG.PHOTO_PROXY){
-        photoUrl=`${CFG.PHOTO_PROXY}/photo?file_id=${encodeURIComponent(f.file_id)}`;
-      } else {
-        try{
-          const r=await fetch(`https://api.telegram.org/bot${CFG.BOT_TOKEN}/getFile?file_id=${f.file_id}`);
-          const j=await r.json();
-          if(!j.ok)continue;
-          photoUrl=`https://api.telegram.org/file/bot${CFG.BOT_TOKEN}/${j.result.file_path}`;
-        }catch{continue}
-      }
+      const photoUrl=`${CFG.SCHEDULE_API}/photo?file_id=${encodeURIComponent(f.file_id)}`;
       div.className='attach-photo';
       div.innerHTML=`<img src="${photoUrl}" alt="" loading="lazy">`;
       div.onclick=()=>openLightbox(photoUrl);
@@ -505,7 +540,11 @@ document.addEventListener('DOMContentLoaded',async()=>{
     S.tgUser=Telegram.WebApp.initDataUnsafe?.user||null
   }
   applyTheme(S.theme);applyBg(S.bg);buildThemeGrid();buildBgGrid();buildColorSwatches();const savedColor=localStorage.getItem("accentColor");if(savedColor)applyAccentColor(savedColor,null,false);bindNav();bindCalendar();
-  await loadProfileUI();const savedAv=localStorage.getItem('customAvatar');if(savedAv)applyCustomAvatar(savedAv);await loadHW();renderStrip();await loadWeekAndRender(S.date);
+  await loadProfileUI();const savedAv=localStorage.getItem('customAvatar');if(savedAv)applyCustomAvatar(savedAv);
+  await loadActiveGroup();
+  // Показать имя активной группы в шапке профиля, если есть элемент.
+  const gn=document.getElementById('profileGroup');if(gn)gn.textContent=S.group?S.group.name:'Группа не выбрана';
+  await loadHW();renderStrip();await loadWeekAndRender(S.date);
   if(!S.subgroup)goView('profile');
 });
 </script>
